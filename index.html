@@ -110,7 +110,6 @@
   .main {
     display: flex;
     flex: 1;
-    height: calc(100vh - 53px);
     overflow: hidden;
   }
 
@@ -134,20 +133,24 @@
     border-right: none;
     display: flex;
     flex-direction: column;
-    overflow: hidden;
     background: var(--bg2);
     flex-shrink: 0;
     width: 300px;
     min-width: 180px;
     max-width: 620px;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
   }
 
   .panel {
     display: flex;
     flex-direction: column;
-    overflow: hidden;
+    overflow-y: auto;
     flex: 1;
     min-width: 0;
+    height: 100vh;
   }
 
   .sidebar-section {
@@ -211,7 +214,6 @@
   }
 
   .free-notes-textarea {
-    flex: 1;
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 6px;
@@ -219,10 +221,11 @@
     font-family: 'DM Sans', sans-serif;
     font-size: 13px;
     padding: 10px 12px;
-    resize: none;
+    resize: vertical;
     line-height: 1.65;
     transition: border-color 0.15s;
-    min-height: 0;
+    height: 100px;
+    width: 100%;
   }
 
   .free-notes-textarea:focus { outline: none; border-color: var(--accent); }
@@ -530,11 +533,11 @@
       <div class="pacing-item"><span>Interest & close</span><span class="pacing-time">12–15 min</span></div>
     </div>
     <div class="cheat-sheet-box">
-      <div class="sidebar-label">Role quick notes</div>
+      <div class="sidebar-label">Role overview</div>
       <div class="jd-input-row">
         <textarea class="cheat-paste" id="jdText" placeholder="Paste JD text here..." rows="3"></textarea>
       </div>
-      <button class="btn" style="width:100%;margin-bottom:10px" id="cheatBtn">Parse cheat sheet</button>
+      <button class="btn" style="width:100%;margin-bottom:10px" id="cheatBtn">Parse JD</button>
       <div id="cheatContent"><span class="cheat-empty">Paste a JD above and click parse</span></div>
     </div>
     <div class="free-notes-box">
@@ -853,7 +856,6 @@ function parseAndRenderCheat() {
 
   cheatData = { role, company, about, location, comp, funding, stage, highlights };
   renderCheatSheet();
-  showToast('Cheat sheet ready');
 }
 
 function renderCheatSheet() {
@@ -870,7 +872,7 @@ function renderCheatSheet() {
     { key: 'Notable',   val: cheatData.highlights },
   ].filter(r => r.val);
   if (!rows.length) {
-    box.innerHTML = '<span class="cheat-empty">Could not parse — try pasting more of the JD</span>';
+    box.innerHTML = '<span class="cheat-empty">Could not parse — try pasting a more accurate JD</span>';
     return;
   }
   box.innerHTML = rows.map(r => `
@@ -878,6 +880,7 @@ function renderCheatSheet() {
       <span class="cheat-key">${r.key}</span>
       <span class="cheat-val">${r.val}</span>
     </div>`).join('');
+  showToast('JD parsed');
 }
 
 function getCheatData() { return cheatData || {}; }
