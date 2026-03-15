@@ -1,0 +1,952 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RPS Assistant</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,400;0,500;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:       #f5f0e8;
+    --bg2:      #ede8df;
+    --surface:  #faf7f2;
+    --surface2: #f0ece3;
+    --border:   #ddd6c8;
+    --border2:  #cec6b4;
+    --ink:      #2e2820;
+    --ink2:     #5a5044;
+    --muted:    #9a8e80;
+    --muted2:   #b8ad9e;
+    --accent:   #8b6f47;
+    --accent2:  #a07850;
+    --tag-bg:   #ede5d8;
+    --danger:   #a05040;
+    --danger-bg:#f5ece8;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  header {
+    border-bottom: 1px solid var(--border);
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    position: sticky;
+    top: 0;
+    background: var(--bg);
+    z-index: 10;
+  }
+
+  .logo {
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--accent);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .header-divider { width: 1px; height: 14px; background: var(--border2); }
+
+  .header-subtitle { color: var(--muted); font-size: 13px; }
+
+  .header-actions {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .candidate-input {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    color: var(--ink);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px;
+    padding: 5px 10px;
+    width: 200px;
+    transition: border-color 0.15s;
+  }
+
+  .candidate-input:focus { outline: none; border-color: var(--accent); }
+  .candidate-input::placeholder { color: var(--muted2); }
+
+  .btn {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    padding: 6px 14px;
+    border-radius: 5px;
+    cursor: pointer;
+    border: 1px solid var(--border2);
+    background: var(--surface);
+    color: var(--muted);
+    transition: all 0.12s;
+  }
+
+  .btn:hover { border-color: var(--accent); color: var(--accent); background: var(--tag-bg); }
+
+  .btn-primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--surface);
+  }
+
+  .btn-primary:hover { background: var(--accent2); border-color: var(--accent2); color: var(--surface); }
+
+  /* MAIN LAYOUT */
+  .main {
+    display: flex;
+    flex: 1;
+    height: calc(100vh - 53px);
+    overflow: hidden;
+  }
+
+  .resize-handle {
+    width: 5px;
+    background: var(--border);
+    cursor: col-resize;
+    flex-shrink: 0;
+    transition: background 0.15s;
+    position: relative;
+    z-index: 5;
+  }
+
+  .resize-handle:hover,
+  .resize-handle.dragging {
+    background: var(--accent);
+  }
+
+  /* SIDEBAR */
+  .sidebar {
+    border-right: none;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--bg2);
+    flex-shrink: 0;
+    width: 300px;
+    min-width: 180px;
+    max-width: 620px;
+  }
+
+  .panel {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .sidebar-section {
+    padding: 16px 14px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .sidebar-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    font-weight: 400;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+
+  .cat-list { display: flex; flex-direction: column; gap: 2px; }
+
+  .cat-btn {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 7px 10px;
+    border-radius: 6px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--muted);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.12s, color 0.12s, border-color 0.12s;
+  }
+
+  .cat-btn:hover { background: var(--surface); color: var(--ink2); border-color: var(--border); }
+  .cat-btn.active { background: var(--surface); border-color: var(--border2); color: var(--ink); }
+
+  .cat-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; background: var(--muted2); }
+  .cat-btn.active .cat-dot { background: var(--accent); }
+
+  .cat-count {
+    margin-left: auto;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: var(--muted2);
+  }
+
+  /* Pacing guide in sidebar */
+  .pacing-box {
+    padding: 16px 14px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .free-notes-box {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 16px 14px;
+    min-height: 0;
+  }
+
+  .free-notes-textarea {
+    flex: 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--ink);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    padding: 10px 12px;
+    resize: none;
+    line-height: 1.65;
+    transition: border-color 0.15s;
+    min-height: 0;
+  }
+
+  .free-notes-textarea:focus { outline: none; border-color: var(--accent); }
+  .free-notes-textarea::placeholder { color: var(--muted2); font-style: italic; }
+
+  .pacing-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 5px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+    color: var(--ink2);
+  }
+
+  .pacing-item:last-child { border-bottom: none; }
+
+  .pacing-time {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+
+  /* PANEL */
+  .panel-header {
+    padding: 13px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--surface);
+  }
+
+  .panel-title {
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--ink);
+    letter-spacing: 0.04em;
+  }
+
+  .panel-desc { font-size: 12px; color: var(--muted); }
+
+  .panel-actions { margin-left: auto; display: flex; gap: 8px; }
+
+  .questions-grid {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    background: var(--bg);
+  }
+
+  .questions-grid::-webkit-scrollbar { width: 4px; }
+  .questions-grid::-webkit-scrollbar-track { background: transparent; }
+  .questions-grid::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+  .section-divider {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted2);
+    margin: 18px 0 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .section-divider:first-child { margin-top: 0; }
+
+  .section-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* QUESTION CARD */
+  .q-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 15px;
+    margin-bottom: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    position: relative;
+  }
+
+  .q-card.hidden-card { display: none; }
+
+  .q-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .q-number {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--muted2);
+    flex-shrink: 0;
+    padding-top: 2px;
+    width: 20px;
+  }
+
+  .q-text {
+    font-size: 13.5px;
+    line-height: 1.5;
+    color: var(--ink);
+    flex: 1;
+    border-radius: 4px;
+    padding: 1px 4px;
+    margin: -1px -4px;
+    transition: background 0.12s, outline 0.12s;
+    cursor: text;
+    outline: none;
+  }
+
+  .q-text:hover {
+    background: var(--tag-bg);
+  }
+
+  .q-text:focus {
+    background: var(--bg);
+    outline: 1px solid var(--border2);
+  }
+
+  .q-hide-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--muted2);
+    font-size: 16px;
+    padding: 0 0 0 6px;
+    line-height: 1;
+    flex-shrink: 0;
+    transition: color 0.12s;
+    font-family: 'DM Mono', monospace;
+  }
+
+  .q-hide-btn:hover { color: var(--danger); }
+
+  .q-note {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    color: var(--ink);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    padding: 8px 11px;
+    resize: vertical;
+    line-height: 1.6;
+    min-height: 60px;
+    width: 100%;
+    transition: border-color 0.15s;
+  }
+
+  .q-note:focus { outline: none; border-color: var(--accent); }
+  .q-note::placeholder { color: var(--muted2); font-style: italic; }
+
+  /* FOOTER */
+  .panel-footer {
+    border-top: 1px solid var(--border);
+    padding: 12px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--surface);
+    gap: 12px;
+  }
+
+  .footer-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .progress-text {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  /* TOAST */
+  .toast {
+    position: fixed;
+    bottom: 22px;
+    left: 50%;
+    transform: translateX(-50%) translateY(60px);
+    background: var(--ink);
+    color: var(--bg);
+    padding: 9px 18px;
+    border-radius: 6px;
+    font-size: 12px;
+    transition: transform 0.25s ease;
+    z-index: 100;
+    pointer-events: none;
+    font-family: 'DM Mono', monospace;
+    letter-spacing: 0.02em;
+  }
+
+  .toast.show { transform: translateX(-50%) translateY(0); }
+
+  /* Cheat sheet */
+  .cheat-sheet-box {
+    padding: 14px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .cheat-paste {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    color: var(--ink);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px;
+    padding: 7px 9px;
+    resize: vertical;
+    line-height: 1.5;
+    margin-bottom: 8px;
+    transition: border-color 0.15s;
+  }
+  .cheat-paste:focus { outline: none; border-color: var(--accent); }
+  .cheat-paste::placeholder { color: var(--muted2); font-style: italic; }
+
+  .cheat-row {
+    display: flex;
+    gap: 6px;
+    padding: 4px 0;
+    border-bottom: 1px solid var(--border);
+    align-items: flex-start;
+  }
+  .cheat-row:last-child { border-bottom: none; }
+
+  .cheat-key {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    flex-shrink: 0;
+    width: 56px;
+    padding-top: 2px;
+  }
+
+  .cheat-val {
+    color: var(--ink);
+    font-size: 12px;
+    flex: 1;
+    line-height: 1.5;
+  }
+
+  .cheat-empty {
+    color: var(--muted2);
+    font-size: 12px;
+    font-style: italic;
+  }
+
+  /* Empty state */
+  .empty-state {
+    text-align: center;
+    padding: 48px 24px;
+    color: var(--muted2);
+    font-size: 13px;
+    display: none;
+  }
+
+  .empty-state.visible { display: block; }
+</style>
+</head>
+<body>
+
+<header>
+  <span class="logo">RPS</span>
+  <div class="header-divider"></div>
+  <span class="header-subtitle">Recruiter Phone Screen</span>
+  <div class="header-actions">
+    <input type="text" class="candidate-input" id="clientName" placeholder="Client name...">
+    <input type="text" class="candidate-input" id="candidateName" placeholder="Candidate name...">
+    <input type="email" class="candidate-input" id="recipientEmail" placeholder="Send notes to...">
+    <button class="btn" id="newCallBtn">New call</button>
+    <button class="btn btn-primary" id="submitBtnHeader">Submit notes</button>
+  </div>
+</header>
+
+<div class="main">
+  <div class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-label">Categories</div>
+      <div class="cat-list" id="catList"></div>
+    </div>
+    <div class="pacing-box">
+      <div class="sidebar-label">15-min pacing</div>
+      <div class="pacing-item"><span>Intro & rapport</span><span class="pacing-time">0–2 min</span></div>
+      <div class="pacing-item"><span>Motivation</span><span class="pacing-time">2–5 min</span></div>
+      <div class="pacing-item"><span>Experience</span><span class="pacing-time">5–9 min</span></div>
+      <div class="pacing-item"><span>Logistics</span><span class="pacing-time">9–12 min</span></div>
+      <div class="pacing-item"><span>Interest & close</span><span class="pacing-time">12–15 min</span></div>
+    </div>
+    <div class="cheat-sheet-box">
+      <div class="sidebar-label">Role quick notes</div>
+      <div class="jd-input-row">
+        <textarea class="cheat-paste" id="jdText" placeholder="Paste JD text here..." rows="3"></textarea>
+      </div>
+      <button class="btn" style="width:100%;margin-bottom:10px" id="cheatBtn">Parse cheat sheet</button>
+      <div id="cheatContent"><span class="cheat-empty">Paste a JD above and click parse</span></div>
+    </div>
+    <div class="free-notes-box">
+      <div class="sidebar-label">Free notes</div>
+      <textarea class="free-notes-textarea" id="freeNotes" placeholder="General observations, impressions, follow-ups..."></textarea>
+    </div>
+  </div>
+
+  <div class="resize-handle" id="resizeHandle"></div>
+
+  <div class="panel">
+    <div class="panel-header">
+      <span class="panel-title" id="panelTitle">All Questions</span>
+      <span class="panel-desc" id="panelDesc">Fill in notes as you go — hidden questions restore on new call</span>
+      <div class="panel-actions">
+        <button class="btn" id="restoreBtn" style="display:none">Restore hidden</button>
+      </div>
+    </div>
+    <div class="questions-grid" id="questionsGrid"></div>
+    <div class="panel-footer">
+      <div class="footer-left">
+        <span class="progress-text" id="progressText">0 / 0 notes filled</span>
+      </div>
+      <button class="btn btn-primary" id="submitBtnFooter">Submit notes</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+
+
+// Only recruiter-appropriate questions — removed anything a hiring manager owns
+const categories = [
+  {
+    id: 'motivation',
+    label: 'Motivation & Search',
+    questions: [
+      { id: 'm1', q: "What's prompting you to explore new opportunities right now?" },
+      { id: 'm2', q: "What does your ideal next role look like?" },
+      { id: 'm3', q: "What would need to be true about a new role for you to say yes?" },
+      { id: 'm4', q: "Have you had any other conversations or offers in play?" },
+      { id: 'm5', q: "What's kept you at your current company this long — or what's changed?" },
+    ]
+  },
+  {
+    id: 'experience',
+    label: 'Experience & Background',
+    questions: [
+      { id: 'e1', q: "Walk me through your current role — what do you actually own day to day?" },
+      { id: 'e2', q: "How long have you been in your current role, and what's changed since you started?" },
+      { id: 'e3', q: "How would your manager describe your biggest strength right now?" },
+    ]
+  },
+  {
+    id: 'logistics',
+    label: 'Logistics & Timing',
+    questions: [
+      { id: 'l1', q: "What are you targeting in terms of total compensation?" },
+      { id: 'l2', q: "What's your notice period, and is there any flexibility there?" },
+      { id: 'l3', q: "Is this role's location working for you — remote, hybrid, or in-office?" },
+      { id: 'l4', q: "Are there any timing constraints on your end — travel, PTO, other offers?" },
+    ]
+  },
+  {
+    id: 'interest',
+    label: 'Interest in the Role',
+    questions: [
+      { id: 'i1', q: "What do you know about us so far, and what made you open to this call?" },
+      { id: 'i2', q: "Is there anything about the role or company that gives you pause?" },
+      { id: 'i3', q: "On a scale of 1–10, how interested are you right now — and what would move that number up?" },
+    ]
+  },
+  {
+    id: 'closing',
+    label: 'Closing',
+    questions: [
+      { id: 'c1', q: "Based on what we've covered, do you see yourself moving forward?" },
+      { id: 'c2', q: "What's the best way to reach you, and what's your availability for next steps?" },
+    ]
+  }
+];
+
+let activeCategory = 'all';
+let hiddenIds = new Set();   // hidden for this session only
+let notes = {};              // { questionId: noteText }
+
+function init() {
+  document.getElementById('cheatBtn').addEventListener('click', parseAndRenderCheat);
+  document.getElementById('newCallBtn').addEventListener('click', newCall);
+  document.getElementById('submitBtnHeader').addEventListener('click', submitNotes);
+  document.getElementById('submitBtnFooter').addEventListener('click', submitNotes);
+  document.getElementById('restoreBtn').addEventListener('click', restoreHidden);
+  renderCategories();
+  renderQuestions();
+
+  const handle = document.getElementById('resizeHandle');
+  const sidebar = document.querySelector('.sidebar');
+  let dragging = false, startX, startW;
+  handle.addEventListener('mousedown', e => {
+    dragging = true; startX = e.clientX; startW = sidebar.offsetWidth;
+    handle.classList.add('dragging');
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  });
+  document.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    sidebar.style.width = Math.min(620, Math.max(180, startW + (e.clientX - startX))) + 'px';
+  });
+  document.addEventListener('mouseup', () => {
+    if (!dragging) return;
+    dragging = false; handle.classList.remove('dragging');
+    document.body.style.cursor = ''; document.body.style.userSelect = '';
+  });
+}
+
+function renderCategories() {
+  const list = document.getElementById('catList');
+  list.innerHTML = '';
+
+  const totalQ = categories.reduce((s, c) => s + c.questions.length, 0);
+  const allBtn = makeBtn('all', 'All Questions', totalQ);
+  list.appendChild(allBtn);
+
+  categories.forEach(cat => {
+    list.appendChild(makeBtn(cat.id, cat.label, cat.questions.length));
+  });
+}
+
+function makeBtn(id, label, count) {
+  const btn = document.createElement('button');
+  btn.className = 'cat-btn' + (activeCategory === id ? ' active' : '');
+  btn.innerHTML = `<span class="cat-dot"></span>${label}<span class="cat-count">${count}</span>`;
+  btn.addEventListener('click', () => { activeCategory = id; renderCategories(); renderQuestions(); });
+  return btn;
+}
+
+function renderQuestions() {
+  const grid = document.getElementById('questionsGrid');
+  grid.innerHTML = '';
+
+  const cats = activeCategory === 'all'
+    ? categories
+    : categories.filter(c => c.id === activeCategory);
+
+  const cat = activeCategory === 'all' ? null : categories.find(c => c.id === activeCategory);
+  document.getElementById('panelTitle').textContent = cat ? cat.label : 'All Questions';
+
+  let qNum = 0;
+  let totalVisible = 0;
+  let totalFilled = 0;
+
+  cats.forEach(cat => {
+    if (activeCategory === 'all') {
+      const div = document.createElement('div');
+      div.className = 'section-divider';
+      div.innerHTML = `<span>${cat.label}</span>`;
+      grid.appendChild(div);
+    }
+
+    cat.questions.forEach(q => {
+      qNum++;
+      const hidden = hiddenIds.has(q.id);
+      if (!hidden) totalVisible++;
+      if (!hidden && notes[q.id] && notes[q.id].trim()) totalFilled++;
+
+      const card = document.createElement('div');
+      card.className = 'q-card' + (hidden ? ' hidden-card' : '');
+      card.id = 'card-' + q.id;
+
+  card.innerHTML = `
+    <div class="q-header">
+      <span class="q-number">${String(qNum).padStart(2,'0')}</span>
+      <span
+        class="q-text"
+        contenteditable="true"
+        spellcheck="false"
+        id="qtext-${q.id}"
+        title="Click to edit question"
+      >${q.q}</span>
+      <button class="q-hide-btn" data-qid="${q.id}" title="Hide for this call">×</button>
+    </div>
+    <textarea
+      class="q-note"
+      id="note-${q.id}"
+      placeholder="Notes..."
+      rows="2"
+    >${notes[q.id] || ''}</textarea>
+  `;
+
+  card.querySelector('.q-hide-btn').addEventListener('click', () => hideQuestion(q.id));
+  card.querySelector('.q-text').addEventListener('input', e => saveQuestion(q.id, e.target.innerText));
+  card.querySelector('.q-note').addEventListener('input', e => saveNote(q.id, e.target.value));
+
+      grid.appendChild(card);
+    });
+  });
+
+  document.getElementById('progressText').textContent = `${totalFilled} / ${totalVisible} notes filled`;
+
+  const anyHidden = hiddenIds.size > 0;
+  document.getElementById('restoreBtn').style.display = anyHidden ? 'inline-flex' : 'none';
+}
+
+function saveNote(id, val) {
+  notes[id] = val;
+  updateProgress();
+}
+
+function saveQuestion(id, text) {
+  // Update in categories array so edits persist across category switches
+  categories.forEach(cat => {
+    cat.questions.forEach(q => {
+      if (q.id === id) q.q = text.trim() || q.q;
+    });
+  });
+}
+
+function updateProgress() {
+  let totalVisible = 0, totalFilled = 0;
+  categories.forEach(cat => {
+    cat.questions.forEach(q => {
+      if (!hiddenIds.has(q.id)) {
+        totalVisible++;
+        if (notes[q.id] && notes[q.id].trim()) totalFilled++;
+      }
+    });
+  });
+  document.getElementById('progressText').textContent = `${totalFilled} / ${totalVisible} notes filled`;
+}
+
+function hideQuestion(id) {
+  hiddenIds.add(id);
+  const card = document.getElementById('card-' + id);
+  if (card) card.classList.add('hidden-card');
+  document.getElementById('restoreBtn').style.display = 'inline-flex';
+  updateProgress();
+}
+
+function restoreHidden() {
+  hiddenIds.clear();
+  renderQuestions();
+  showToast('All questions restored');
+}
+
+// Cheat sheet — parse from pasted JD text
+let cheatData = null;
+
+function parseAndRenderCheat() {
+  const raw = document.getElementById('jdText').value.trim();
+  if (!raw) { showToast('Paste a JD first'); return; }
+
+  const lines = raw.split('\n').map(l => l.trim()).filter(Boolean);
+  const cleanLines = lines.map(l => l.replace(/^\*\s*/,'').trim()).filter(Boolean);
+  const allText = cleanLines.join(' ');
+
+  // ROLE — first line matching common title patterns
+  let role = '';
+  for (const l of cleanLines) {
+    if (/^(senior|junior|staff|lead|principal|software|product|data|ml|ai|full.stack|backend|frontend|devops|engineering|site reliability)/i.test(l) && l.length < 80) {
+      role = l; break;
+    }
+  }
+
+  // COMPANY — first bullet item (original lines starting with "* Word")
+  let company = '';
+  for (const l of lines) {
+    if (/^\*\s+\w/.test(l)) { company = l.replace(/^\*\s*/,'').trim(); break; }
+  }
+
+  // ABOUT — first long line after "About <Name>:"
+  let about = '';
+  const aboutIdx = cleanLines.findIndex(l => /^about\s*\w*\s*:/i.test(l));
+  if (aboutIdx >= 0) {
+    for (let i = aboutIdx + 1; i < cleanLines.length; i++) {
+      if (cleanLines[i].length > 60) {
+        about = cleanLines[i].substring(0, 240) + (cleanLines[i].length > 240 ? '…' : '');
+        break;
+      }
+    }
+  }
+
+  // LOCATION — structured labels
+  let locType = '', locCity = '';
+  for (let i = 0; i < cleanLines.length; i++) {
+    if (cleanLines[i] === 'Location Type' && cleanLines[i+1]) locType = cleanLines[i+1].trim();
+    if (cleanLines[i] === 'Location' && cleanLines[i+1] && cleanLines[i+1] !== 'Type') locCity = cleanLines[i+1].trim();
+  }
+  const location = locType && locCity ? locType + ' — ' + locCity : locType || locCity || '';
+
+  // COMP — cleaned line with $digit, short enough to be a range
+  let comp = '';
+  for (const l of cleanLines) {
+    if (/\$[\d]/.test(l) && l.length < 60) { comp = l.trim(); break; }
+  }
+
+  // FUNDING — sentence containing 'raised'
+  let funding = '';
+  const fundM = allText.match(/raised[^.]+\./i);
+  if (fundM) funding = fundM[0].trim().substring(0, 120);
+
+  // STAGE
+  let stage = '';
+  const stageM = allText.match(/\b(pre.?seed|seed|series [a-z]|growth|ipo|public|early.stage)\b/i);
+  if (stageM) stage = stageM[1];
+
+  // HIGHLIGHTS — 1-2 sentences from "About The Role" section
+  let highlights = '';
+  const roleIdx = cleanLines.findIndex(l => /^about the role/i.test(l));
+  if (roleIdx >= 0) {
+    const chunk = cleanLines.slice(roleIdx + 1, roleIdx + 6).join(' ');
+    const sents = chunk.match(/[^.!?]{40,200}[.!?]/g) || [];
+    highlights = sents.slice(0, 2).map(s => s.trim()).join(' ');
+  }
+
+  cheatData = { role, company, about, location, comp, funding, stage, highlights };
+  renderCheatSheet();
+  showToast('Cheat sheet ready');
+}
+
+function renderCheatSheet() {
+  const box = document.getElementById('cheatContent');
+  if (!cheatData) return;
+  const rows = [
+    { key: 'Role',      val: cheatData.role },
+    { key: 'Company',   val: cheatData.company },
+    { key: 'About',     val: cheatData.about },
+    { key: 'Location',  val: cheatData.location },
+    { key: 'Comp',      val: cheatData.comp },
+    { key: 'Funding',   val: cheatData.funding },
+    { key: 'Stage',     val: cheatData.stage },
+    { key: 'Notable',   val: cheatData.highlights },
+  ].filter(r => r.val);
+  if (!rows.length) {
+    box.innerHTML = '<span class="cheat-empty">Could not parse — try pasting more of the JD</span>';
+    return;
+  }
+  box.innerHTML = rows.map(r => `
+    <div class="cheat-row">
+      <span class="cheat-key">${r.key}</span>
+      <span class="cheat-val">${r.val}</span>
+    </div>`).join('');
+}
+
+function getCheatData() { return cheatData || {}; }
+
+function clearCheatSheet() {
+  cheatData = null;
+  const jd = document.getElementById('jdText');
+  if (jd) jd.value = '';
+  const box = document.getElementById('cheatContent');
+  if (box) box.innerHTML = '<span class="cheat-empty">Paste a JD above and click parse</span>';
+}
+
+function newCall() {
+  if (!confirm('Start a new call? Notes will be cleared and hidden questions restored.')) return;
+  notes = {};
+  hiddenIds.clear();
+  document.getElementById('clientName').value = '';
+  document.getElementById('candidateName').value = '';
+  document.getElementById('recipientEmail').value = '';
+  document.getElementById('freeNotes').value = '';
+  clearCheatSheet();
+  renderQuestions();
+  showToast('Ready for new call');
+}
+
+function submitNotes() {
+  const candidate = document.getElementById('candidateName').value.trim() || 'Unknown Candidate';
+  const client = document.getElementById('clientName').value.trim();
+  const date = new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+
+  let body = `RPS Notes — ${candidate}\n`;
+  if (client) body += `Client: ${client}\n`;
+  body += `${date}\n`;
+  body += '='.repeat(40) + '\n\n';
+
+  categories.forEach(cat => {
+    const visibleQs = cat.questions.filter(q => !hiddenIds.has(q.id));
+    if (!visibleQs.length) return;
+    body += `${cat.label.toUpperCase()}\n${'-'.repeat(cat.label.length)}\n`;
+    visibleQs.forEach(q => {
+      const note = notes[q.id] ? notes[q.id].trim() : '—';
+      body += `\nQ: ${q.q}\n${note}\n`;
+    });
+    body += '\n';
+  });
+
+  const freeNotes = document.getElementById('freeNotes').value.trim();
+  if (freeNotes) {
+    body += `GENERAL NOTES\n${'-'.repeat(13)}\n${freeNotes}\n\n`;
+  }
+
+  const recipient = document.getElementById('recipientEmail').value.trim();
+  if (!recipient) { showToast('Enter a recipient email first'); return; }
+  const subject = encodeURIComponent(`RPS Notes — ${candidate} — ${date}`);
+  const encodedBody = encodeURIComponent(body);
+  window.location.href = `mailto:${recipient}?subject=${subject}&body=${encodedBody}`;
+  showToast('Opening email...');
+}
+
+let toastTimer;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+init();
+</script>
+</body>
+</html>
