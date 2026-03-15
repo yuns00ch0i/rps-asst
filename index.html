@@ -485,6 +485,8 @@
     line-height: 1.5;
   }
 
+.cheat-loading { color: var(--muted); font-size: 12px; font-style: italic; }
+
   .cheat-empty {
     color: var(--muted2);
     font-size: 12px;
@@ -534,7 +536,7 @@
     </div>
     <div class="cheat-sheet-box">
       <div class="sidebar-label">Role overview</div>
-      <div class="jd-input-row">
+<div class="jd-input-row">
         <textarea class="cheat-paste" id="jdText" placeholder="Paste JD text here..." rows="3"></textarea>
       </div>
       <button class="btn" style="width:100%;margin-bottom:10px" id="cheatBtn">Parse JD</button>
@@ -790,66 +792,132 @@ let cheatData = null;
 function parseAndRenderCheat() {
   const raw = document.getElementById('jdText').value.trim();
   if (!raw) { showToast('Paste a JD first'); return; }
+  parseWithRegex(raw);
+}
 
+function parseWithRegex(raw) {
   const lines = raw.split('\n').map(l => l.trim()).filter(Boolean);
-  const cleanLines = lines.map(l => l.replace(/^\*\s*/,'').trim()).filter(Boolean);
+  const cleanLines = lines
+    .map(l => l.replace(/^\*\s*/,'').replace(/^(job title|position|company|department|employment type|employment status|job type)\s*:\s*/i,'').trim())
+    .filter(Boolean);
   const allText = cleanLines.join(' ');
 
-  // ROLE — first line matching common title patterns
+  const skipWords = /^(corporate_fare|place|laptop|info_outline|about|minimum|preferred|requirements|responsibilities|qualifications|what you|note:|powered|privacy|security|apply|this role|this is|company overview|job summary|job description|overview)/i;
+  const metaWords = /^(full.?time|part.?time|remote|hybrid|on.?site|contract|permanent|salary|compensation|location|department|employment|job type|mid.senior|senior.level)/i;
+  const cityLinePat = /^[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?,\s*[A-Z]{2}/;
+  const titleKeywords = /^(senior|junior|staff|lead|principal|software|product|data|ml|ai[- ]|full.stack|backend|frontend|devops|engineering|recruiting|recruiter|talent|people|hr |operations|specialist|manager|analyst|designer|scientist|researcher|director|coordinator|associate|vp |vice president|head of|account|sales|marketing|finance|legal|communications|content|growth|revenue|customer|support|success|security|infra|platform|mobile|ios|android)/i;
+
   let role = '';
   for (const l of cleanLines) {
-    if (/^(senior|junior|staff|lead|principal|software|product|data|ml|ai|full.stack|backend|frontend|devops|engineering|site reliability)/i.test(l) && l.length < 80) {
-      role = l; break;
+    if (l.length < 100 && !skipWords.test(l) && !metaWords.test(l) && !cityLinePat.test(l) && titleKeywords.test(l)) { role = l; break; }
+  }
+  if (!role) {
+    for (const l of cleanLines.slice(0, 8)) {
+      if (l.length < 80 && /^[A-Z][a-z]/.test(l) && !skipWords.test(l) && !metaWords.test(l) && !cityLinePat.test(l) && !/^\d/.test(l)) { role = l; break; }
     }
   }
 
-  // COMPANY — first bullet item (original lines starting with "* Word")
   let company = '';
-  for (const l of lines) {
-    if (/^\*\s+\w/.test(l)) { company = l.replace(/^\*\s*/,'').trim(); break; }
+  for (const l of lines) { if (/^\*\s+\w/.test(l)) { company = l.replace(/^\*\s*/,'').trim(); break; } }
+  if (!company) { for (const l of lines) { const m = l.match(/^company\s*:\s*(.+)/i); if (m && m[1].trim().length < 50) { company = m[1].trim(); break; } } }
+  if (!company) {
+    for (const l of lines) {
+      if (l.includes('\u00b7')) {
+        const parts = l.split('\u00b7').map(p => p.trim()).filter(Boolean);
+        for (const p of parts) {
+          if (p.length < 50 && /^[A-Z]/.test(p) && !metaWords.test(p) && !cityLinePat.test(p) && !titleKeywords.test(p) && p !== role) { company = p; break; }
+        }
+        if (company) break;
+      }
+    }
+  }
+  if (!company && role) {
+    const ri = cleanLines.indexOf(role);
+    for (let i = ri + 1; i < Math.min(ri + 6, cleanLines.length); i++) {
+      const l = cleanLines[i];
+      if (l.length < 50 && /^[A-Z]/.test(l) && !skipWords.test(l) && !metaWords.test(l) && !cityLinePat.test(l) && !/^\d/.test(l) && !titleKeywords.test(l) && !l.includes('\u00b7')) { company = l; break; }
+    }
+  }
+  if (!company) {
+    const ovIdx = cleanLines.findIndex(l => /^(company overview|about us|about the company)/i.test(l));
+    if (ovIdx >= 0 && cleanLines[ovIdx + 1]) {
+      const m = cleanLines[ovIdx + 1].match(/^([A-Z][a-zA-Z&.\s]{1,30}?)\s+(?:is |are |was |has |provides|helps|builds|creates|offers)/);
+      if (m) company = m[1].trim();
+    }
   }
 
-  // ABOUT — first long line after "About <Name>:"
   let about = '';
-  const aboutIdx = cleanLines.findIndex(l => /^about\s*\w*\s*:/i.test(l));
+  const aboutIdx = cleanLines.findIndex(l => /^about\s*(the\s*)?(job|role|company|us\b|\w+:)/i.test(l));
   if (aboutIdx >= 0) {
     for (let i = aboutIdx + 1; i < cleanLines.length; i++) {
-      if (cleanLines[i].length > 60) {
-        about = cleanLines[i].substring(0, 240) + (cleanLines[i].length > 240 ? '…' : '');
-        break;
+      if (cleanLines[i].length > 60 && !skipWords.test(cleanLines[i]) && !metaWords.test(cleanLines[i])) {
+        about = cleanLines[i].substring(0, 240) + (cleanLines[i].length > 240 ? '\u2026' : ''); break;
+      }
+    }
+  }
+  if (!about) {
+    for (const l of cleanLines.slice(0, Math.floor(cleanLines.length / 2))) {
+      if (l.length > 80 && !skipWords.test(l) && !metaWords.test(l) && /[a-z]{4}/.test(l)) {
+        about = l.substring(0, 240) + (l.length > 240 ? '\u2026' : ''); break;
       }
     }
   }
 
-  // LOCATION — structured labels
   let locType = '', locCity = '';
   for (let i = 0; i < cleanLines.length; i++) {
     if (cleanLines[i] === 'Location Type' && cleanLines[i+1]) locType = cleanLines[i+1].trim();
     if (cleanLines[i] === 'Location' && cleanLines[i+1] && cleanLines[i+1] !== 'Type') locCity = cleanLines[i+1].trim();
   }
-  const location = locType && locCity ? locType + ' — ' + locCity : locType || locCity || '';
-
-  // COMP — cleaned line with $digit, short enough to be a range
-  let comp = '';
-  for (const l of cleanLines) {
-    if (/\$[\d]/.test(l) && l.length < 60) { comp = l.trim(); break; }
+  if (!locCity) { for (const l of lines) { const m = l.match(/^location\s*:\s*(.+)/i); if (m) { locCity = m[1].trim(); break; } } }
+  let location = locType && locCity ? locType + ' \u2014 ' + locCity : locType || locCity || '';
+  if (!location) {
+    const workStyleRe = /\b(remote|hybrid|on.?site|in.?office)\b/i;
+    const cityRe = /([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?,\s*[A-Z]{2}(?:\s*(?:\/|or|;|\|)\s*[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?,\s*[A-Z]{2})?)/;
+    for (const l of cleanLines) {
+      if (l.length > 80) continue;
+      const hasCity = cityLinePat.test(l);
+      const hasWorkStyle = workStyleRe.test(l);
+      if (hasCity || (hasWorkStyle && cityRe.test(l))) {
+        const cityM = l.match(cityRe);
+        const workM = l.match(workStyleRe);
+        const city = cityM ? cityM[1].trim() : '';
+        const work = workM ? workM[1].trim() : '';
+        const workLabel = work ? work.charAt(0).toUpperCase() + work.slice(1) : '';
+        location = workLabel && city ? workLabel + ' \u2014 ' + city : city || workLabel;
+        break;
+      }
+    }
+  }
+  if (!location) {
+    const isRemote = /remote eligible|fully remote|remote.first|100%\s*remote|\(remote\)/i.test(allText);
+    const isHybrid = /\bhybrid\b/i.test(allText);
+    const isOnsite = /\bon.?site\b|\bin.?office\b/i.test(allText);
+    const officeM = allText.match(/in-office locations?:\s*([^.\n]+)/i);
+    if (isHybrid && officeM) location = 'Remote / In-office \u2014 ' + officeM[1].trim().substring(0, 80);
+    else if (isHybrid) location = 'Hybrid';
+    else if (isRemote && officeM) location = 'Remote / In-office \u2014 ' + officeM[1].trim().substring(0, 80);
+    else if (isRemote && isOnsite) location = 'Remote eligible';
+    else if (isRemote) location = 'Remote';
+    else if (isOnsite) location = 'On-site';
   }
 
-  // FUNDING — sentence containing 'raised'
+  let comp = '';
+  for (const l of cleanLines) { if (/\$[\d]/.test(l) && l.length < 80 && !/raised|valued|worth|series|funding/i.test(l)) { comp = l.trim(); break; } }
+  if (!comp) { for (const l of lines) { const m = l.match(/^(?:salary(?: range)?|compensation|pay|base(?: salary)?|ote|comp)\s*[:\-]?\s*(.{5,80})/i); if (m && /[\d\$\xa3\u20ac]/.test(m[2])) { comp = m[2].trim(); break; } } }
+  if (!comp) { const salM = allText.match(/(?:salary|compensation|pay|ote|base)[^\d]{0,20}([\$\u20ac\xa3]?[\d,]+[kK]?\s*[-\u2013\u2014]\s*[\$\u20ac\xa3]?[\d,]+[kK]?(?:\s*(?:USD|GBP|EUR|per year|\/yr|annually))?)/i); if (salM) comp = salM[1].trim(); }
+
   let funding = '';
   const fundM = allText.match(/raised[^.]+\./i);
   if (fundM) funding = fundM[0].trim().substring(0, 120);
 
-  // STAGE
   let stage = '';
-  const stageM = allText.match(/\b(pre.?seed|seed|series [a-z]|growth|ipo|public|early.stage)\b/i);
+  const stageM = allText.match(/\b(pre.?seed|seed|series [a-z]|growth|ipo|public|early.stage|fixed.term|ftc|publicly traded)\b/i);
   if (stageM) stage = stageM[1];
 
-  // HIGHLIGHTS — 1-2 sentences from "About The Role" section
   let highlights = '';
-  const roleIdx = cleanLines.findIndex(l => /^about the role/i.test(l));
-  if (roleIdx >= 0) {
-    const chunk = cleanLines.slice(roleIdx + 1, roleIdx + 6).join(' ');
+  const hlIdx = cleanLines.findIndex(l => /^about the (job|role|position|opportunity)/i.test(l));
+  if (hlIdx >= 0) {
+    const chunk = cleanLines.slice(hlIdx + 1, hlIdx + 6).join(' ');
     const sents = chunk.match(/[^.!?]{40,200}[.!?]/g) || [];
     highlights = sents.slice(0, 2).map(s => s.trim()).join(' ');
   }
@@ -857,6 +925,7 @@ function parseAndRenderCheat() {
   cheatData = { role, company, about, location, comp, funding, stage, highlights };
   renderCheatSheet();
 }
+
 
 function renderCheatSheet() {
   const box = document.getElementById('cheatContent');
